@@ -53,5 +53,5 @@ Example:
 bash uv run resultdownloader.py --urllist racelist.txt
 ```
 
-In this mode, output files are automatically named as `race_EVENT_COMPETITION.csv` 
-based on the event and competition IDs extracted from each URL.
+In this mode, output files are automatically named as `race_EVENT.csv` 
+based on the event IDs extracted from each URL.

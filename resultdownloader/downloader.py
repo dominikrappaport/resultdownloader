@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+import io
 
 
 # Default columns for race results
@@ -92,7 +93,7 @@ class RaceResultsDownloader:
             DataFrame with results or None if no suitable table found
         """
         try:
-            tables = pd.read_html(html)
+            tables = pd.read_html(io.StringIO(html))
         except ValueError:
             # No tables found at all
             return None

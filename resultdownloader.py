@@ -30,13 +30,13 @@ def extract_event_competition(url: str) -> tuple[str, str]:
     Raises:
         ValueError: If URL doesn't match expected pattern
     """
-    pattern = r'/event/([^/]+)/competition/([^/]+)'
+    pattern = r'/event/([^/]+)/'
     match = re.search(pattern, url)
 
     if not match:
         raise ValueError(f"URL doesn't match expected pattern: {url}")
 
-    return match.group(1), match.group(2)
+    return match.group(1)
 
 
 def process_url_list(urllist_file: str) -> int:
@@ -71,8 +71,8 @@ def process_url_list(urllist_file: str) -> int:
 
     for i, url in enumerate(urls, 1):
         try:
-            event, competition = extract_event_competition(url)
-            output_file = f"race_{event}_{competition}.csv"
+            event= extract_event_competition(url)
+            output_file = f"race_{event}.csv"
 
             print(f"[{i}/{len(urls)}] Processing {url}...")
             row_count = downloader.download_to_csv(url, output_file)
@@ -113,7 +113,7 @@ def main() -> int:
         "--urllist",
         help=(
             "Text file with one URL per line. "
-            "Results will be saved as race_EVENT_COMPETITION.csv"
+            "Results will be saved as race_EVENT.csv"
         ),
     )
 
