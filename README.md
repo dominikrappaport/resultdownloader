@@ -25,7 +25,9 @@ uv sync
 
 ## Usage
 
-The script accepts two arguments. The URL of the competition and the name of the CSV file to write to.
+### Single URL mode
+
+Download results from a single competition by providing a URL and output filename:
 
 ```bash
 uv run resultdownloader.py --url "URL" --output FILE
@@ -36,3 +38,20 @@ Example:
 ```bash
 uv run resultdownloader.py --url "https://events.racetime.pro/en/event/1022/competition/6422/results" --output race_results.csv
 ```
+
+### URL list mode
+
+Download results from multiple competitions by providing a text file with one URL per line:
+
+```bash
+uv run resultdownloader.py --urllist FILE
+```
+
+Example:
+
+```bash
+bash uv run resultdownloader.py --urllist racelist.txt
+```
+
+In this mode, output files are automatically named as `race_EVENT.csv` 
+based on the event IDs extracted from each URL.

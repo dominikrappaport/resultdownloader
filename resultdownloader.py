@@ -1,284 +1,155 @@
 """
-Scrape race results from RaceTimePro (English UI), pick specific columns,
-clean up the Name column, and save as a semicolon-separated CSV.
+CLI tool for downloading race results from RaceTimePro.
 
 Usage:
-    python resultsdownloader.py \
+    python resultdownloader.py \
       --url "https://events.racetime.pro/en/event/1022/competition/6422/results" \
       --output results.csv
+
+    python resultdownloader.py \
+      --urllist urls.txt
 """
 
 import argparse
-import csv
+import re
 import sys
-from urllib.parse import urljoin
-import requests
-from bs4 import BeautifulSoup
-import pandas as pd
+from pathlib import Path
+from resultdownloader import RaceResultsDownloader
 
 
-# Columns we want in the final CSV, in this order:
-REQUESTED_COLUMNS = [
-    "Pos",
-    "No",
-    "Name",
-    "Year of Birth",
-    "Time",
-    "Diff",
-    "Cat",
-    "Cat Pos",
-    "Cat Diff",
-    "⚤",
-    "⚤ Pos",
-    "⚤ Diff",
-    "Club",
-    "Pace",
-#    "Nation",
-    "City",
-    "Status",
-    "UCI-ID",
-]
-
-
-def fetch_html(session: requests.Session, url: str) -> str:
+def extract_event_competition(url: str) -> tuple[str, str]:
     """
-    Fetch a URL and return HTML text.
-    We send a browsery User-Agent because some sites behave differently for 'python-requests'.
+    Extract EVENT and COMPETITION from a RaceTimePro URL.
+
+    Args:
+        url: URL in format https://events.racetime.pro/en/event/EVENT/competition/COMPETITION/results
+
+    Returns:
+        Tuple of (event, competition)
+
+    Raises:
+        ValueError: If URL doesn't match expected pattern
     """
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/127.0.0.0 Safari/537.36"
-        )
-    }
-    resp = session.get(url, headers=headers, timeout=30)
-    resp.raise_for_status()
-    return resp.text
+    pattern = r'/event/([^/]+)/'
+    match = re.search(pattern, url)
+
+    if not match:
+        raise ValueError(f"URL doesn't match expected pattern: {url}")
+
+    return match.group(1)
 
 
-def extract_results_table(html: str) -> pd.DataFrame | None:
+def process_url_list(urllist_file: str) -> int:
     """
-    Parse the HTML and return the most likely race results table as a pandas DataFrame.
+    Process a file containing URLs and download results for each.
 
-    Heuristic:
-    - read ALL <table> tags with pandas.read_html()
-    - score each table based on how many "typical" race headers it contains
-    - return the best-scoring one
+    Args:
+        urllist_file: Path to text file with one URL per line
+
+    Returns:
+        Exit code (0 for success, 1 for any errors)
     """
+    urllist_path = Path(urllist_file)
+
+    if not urllist_path.exists():
+        print(f"Error: File not found: {urllist_file}", file=sys.stderr)
+        return 1
+
     try:
-        tables = pd.read_html(html)
-    except ValueError:
-        # No tables found at all
-        return None
+        with open(urllist_path, 'r', encoding='utf-8') as f:
+            urls = [line.strip() for line in f if line.strip()]
+    except Exception as e:
+        print(f"Error reading file {urllist_file}: {e}", file=sys.stderr)
+        return 1
 
-    typical_headers = {
-        "Pos",
-        "No",
-        "Name",
-        "Year of Birth",
-        "Time",
-        "Status",
-        "Club",
-        "UCI-ID",
-        "Pace",
-    }
+    if not urls:
+        print(f"Error: No URLs found in {urllist_file}", file=sys.stderr)
+        return 1
 
-    best_df = None
-    best_score = -1
+    downloader = RaceResultsDownloader()
+    errors = []
 
-    for df in tables:
-        # normalise column labels
-        df.columns = [str(c).strip() for c in df.columns]
+    for i, url in enumerate(urls, 1):
+        try:
+            event= extract_event_competition(url)
+            output_file = f"race_{event}.csv"
 
-        score = sum(
-            1
-            for token in typical_headers
-            if any(token in col for col in df.columns)
-        )
+            print(f"[{i}/{len(urls)}] Processing {url}...")
+            row_count = downloader.download_to_csv(url, output_file)
+            print(f"  ✓ Wrote {row_count} rows to {output_file}")
 
-        if score > best_score:
-            best_df = df
-            best_score = score
+        except ValueError as e:
+            error_msg = f"  ✗ Error processing {url}: {e}"
+            print(error_msg, file=sys.stderr)
+            errors.append(error_msg)
+        except Exception as e:
+            error_msg = f"  ✗ Unexpected error processing {url}: {e}"
+            print(error_msg, file=sys.stderr)
+            errors.append(error_msg)
 
-    # Fallback: if no score > -1 (shouldn't happen unless page has weird HTML),
-    # just take the largest table.
-    if best_df is None and tables:
-        best_df = max(tables, key=lambda d: len(d))
-        best_df.columns = [str(c).strip() for c in best_df.columns]
+    if errors:
+        print(f"\nCompleted with {len(errors)} error(s)", file=sys.stderr)
+        return 1
 
-    return best_df
-
-
-def find_next_page_url(html: str, current_url: str) -> str | None:
-    """
-    Try to detect a *server-side* next page.
-
-    Many racetime.pro pages actually include all rows in one HTML
-    and then paginate client-side with JavaScript. In that case there's
-    no real "next" link in the HTML and we just stop after the first page.
-
-    We'll check:
-    - <a rel="next" ...>
-    - common "next page" link texts
-    """
-    soup = BeautifulSoup(html, "html.parser")
-
-    # 1) rel="next"
-    link = soup.find("a", rel="next")
-    if link and link.get("href"):
-        return urljoin(current_url, link["href"])
-
-    # 2) text-based heuristics
-    possible_texts = [
-        "next",
-        "next »",
-        "next page",
-        ">",
-        "›",
-        ">>",
-        "more",
-        "weiter",
-        "nächste",
-    ]
-
-    for a in soup.find_all("a"):
-        text = (a.get_text() or "").strip().lower()
-        if text in possible_texts and a.get("href"):
-            return urljoin(current_url, a["href"])
-
-    # no server-side next page found
-    return None
-
-
-def scrape_all_pages(start_url: str) -> pd.DataFrame:
-    """
-    Visit start_url and any true "next" pages, combine all result rows,
-    and drop duplicates.
-    """
-    session = requests.Session()
-
-    all_frames = []
-    visited = set()
-    url = start_url
-
-    while url and url not in visited:
-        visited.add(url)
-
-        html = fetch_html(session, url)
-        df = extract_results_table(html)
-
-        if df is not None and not df.empty:
-            # ensure stripped column names on each page
-            df.columns = [str(c).strip() for c in df.columns]
-            all_frames.append(df)
-
-        # follow pagination if available
-        url = find_next_page_url(html, url)
-
-    if not all_frames:
-        # nothing found at all
-        return pd.DataFrame()
-
-    big = pd.concat(all_frames, ignore_index=True)
-
-    # remove duplicates using some identifying columns if present
-    dedup_cols = [c for c in big.columns if c.lower() in ("pos", "no", "name")]
-    if dedup_cols:
-        big = big.drop_duplicates(subset=dedup_cols)
-
-    return big
-
-
-def normalize_name_column(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Clean the 'Name' column:
-    - The raw 'Name' can look like: "Alice Smith  Cycling Club ABC"
-      (two or more spaces separating athlete name and team/club).
-    - We only want the first part before the big gap.
-
-    Steps:
-    - cast to string
-    - split on 2+ whitespace chars
-    - take element 0
-    - strip leading/trailing spaces
-    """
-    if "Name" in df.columns:
-        df["Name"] = (
-            df["Name"]
-            .astype(str)
-            .str.split(r"\s{2,}", n=1)  # split on two or more spaces
-            .str[0]
-            .str.strip()
-        )
-    return df
-
-
-def select_and_order_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ensure all REQUESTED_COLUMNS exist, clean 'Name', and return only those columns
-    in the specified order.
-    """
-    # Make sure all desired columns exist
-    for col in REQUESTED_COLUMNS:
-        if col not in df.columns:
-            df[col] = ""
-
-    # Clean up the 'Name' column
-    df = normalize_name_column(df)
-
-    # Reorder columns
-    df_out = df[REQUESTED_COLUMNS].copy()
-    return df_out
-
-
-def write_csv(df: pd.DataFrame, out_file: str) -> None:
-    """
-    Write final DataFrame to a semicolon-separated CSV (UTF-8).
-    Semicolon is friendlier for Excel in many European locales.
-    """
-    df.to_csv(
-        out_file,
-        index=False,
-        sep=",",
-        quoting=csv.QUOTE_MINIMAL,
-    )
+    print(f"\n✓ Successfully processed all {len(urls)} URL(s)")
+    return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Scrape race results and export selected columns."
     )
-    parser.add_argument(
+
+    # Create mutually exclusive group for --url and --urllist
+    url_group = parser.add_mutually_exclusive_group(required=True)
+    url_group.add_argument(
         "--url",
-        required=True,
         help=(
             "Results page URL "
             "(e.g. https://events.racetime.pro/en/event/1022/competition/6422/results)"
         ),
     )
+    url_group.add_argument(
+        "--urllist",
+        help=(
+            "Text file with one URL per line. "
+            "Results will be saved as race_EVENT.csv"
+        ),
+    )
+
     parser.add_argument(
         "--output",
-        required=True,
-        help="Output CSV filename",
+        help="Output CSV filename (only used with --url)",
     )
 
     args = parser.parse_args()
 
-    df_all = scrape_all_pages(args.url)
+    # Handle --urllist mode
+    if args.urllist:
+        if args.output:
+            print(
+                "Warning: --output is ignored when using --urllist",
+                file=sys.stderr
+            )
+        return process_url_list(args.urllist)
 
-    if df_all.empty:
-        print(
-            "No data found: could not locate a suitable results table.",
-            file=sys.stderr,
-        )
+    # Handle --url mode
+    if not args.output:
+        print("Error: --output is required when using --url", file=sys.stderr)
+        parser.print_help()
         return 1
 
-    df_final = select_and_order_columns(df_all)
-    write_csv(df_final, args.output)
-
-    print(f"Wrote {len(df_final)} rows to {args.output}")
-    return 0
+    try:
+        downloader = RaceResultsDownloader()
+        row_count = downloader.download_to_csv(args.url, args.output)
+        print(f"Wrote {row_count} rows to {args.output}")
+        return 0
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
