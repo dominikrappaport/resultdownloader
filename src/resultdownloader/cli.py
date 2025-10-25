@@ -30,7 +30,7 @@ def extract_event_competition(url: str) -> str:
     Raises:
         ValueError: If URL doesn't match expected pattern
     """
-    pattern = r'/event/([^/]+)/'
+    pattern = r"/event/([^/]+)/"
     match = re.search(pattern, url)
 
     if not match:
@@ -56,7 +56,7 @@ def process_url_list(urllist_file: str) -> int:
         return 1
 
     try:
-        with open(urllist_path, 'r', encoding='utf-8') as f:
+        with open(urllist_path, "r", encoding="utf-8") as f:
             urls = [line.strip() for line in f if line.strip()]
     except Exception as e:
         print(f"Error reading file {urllist_file}: {e}", file=sys.stderr)
@@ -118,8 +118,7 @@ def main() -> int:
     url_group.add_argument(
         "--urllist",
         help=(
-            "Text file with one URL per line. "
-            "Results will be saved as race_EVENT.csv"
+            "Text file with one URL per line. Results will be saved as race_EVENT.csv"
         ),
     )
 
@@ -133,10 +132,7 @@ def main() -> int:
     # Handle --urllist mode
     if args.urllist:
         if args.output:
-            print(
-                "Warning: --output is ignored when using --urllist",
-                file=sys.stderr
-            )
+            print("Warning: --output is ignored when using --urllist", file=sys.stderr)
         return process_url_list(args.urllist)
 
     # Handle --url mode
