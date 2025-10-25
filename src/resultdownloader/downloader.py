@@ -282,17 +282,15 @@ class RaceResultsDownloader:
         df_all = self.scrape_all_pages(url)
 
         if df_all.empty:
-            raise ValueError("No data found: could not locate a suitable results table.")
+            raise ValueError(
+                "No data found: could not locate a suitable results table."
+            )
 
         df_final = self.select_and_order_columns(df_all)
         return df_final
 
     def download_to_csv(
-            self,
-            url: str,
-            output_file: str,
-            separator: str = ",",
-            encoding: str = "utf-8"
+        self, url: str, output_file: str, separator: str = ",", encoding: str = "utf-8"
     ) -> int:
         """
         Download race results and save to CSV file.
@@ -323,10 +321,10 @@ class RaceResultsDownloader:
 
 
 def download_results(
-        url: str,
-        output_file: Optional[str] = None,
-        requested_columns: Optional[list[str]] = None,
-        separator: str = ",",
+    url: str,
+    output_file: Optional[str] = None,
+    requested_columns: Optional[list[str]] = None,
+    separator: str = ",",
 ) -> pd.DataFrame:
     """
     Convenience function to download race results.

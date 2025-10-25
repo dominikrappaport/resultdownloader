@@ -2,11 +2,11 @@
 CLI tool for downloading race results from RaceTimePro.
 
 Usage:
-    python resultdownloader.py \
+    resultdownloader \
       --url "https://events.racetime.pro/en/event/1022/competition/6422/results" \
       --output results.csv
 
-    python resultdownloader.py \
+    resultdownloader \
       --urllist urls.txt
 """
 
@@ -14,23 +14,23 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from resultdownloader import RaceResultsDownloader
+from .downloader import RaceResultsDownloader
 
 
-def extract_event_competition(url: str) -> tuple[str, str]:
+def extract_event_competition(url: str) -> str:
     """
-    Extract EVENT and COMPETITION from a RaceTimePro URL.
+    Extract EVENT from a RaceTimePro URL.
 
     Args:
         url: URL in format https://events.racetime.pro/en/event/EVENT/competition/COMPETITION/results
 
     Returns:
-        Tuple of (event, competition)
+        Event ID
 
     Raises:
         ValueError: If URL doesn't match expected pattern
     """
-    pattern = r'/event/([^/]+)/'
+    pattern = r"/event/([^/]+)/"
     match = re.search(pattern, url)
 
     if not match:
@@ -56,7 +56,7 @@ def process_url_list(urllist_file: str) -> int:
         return 1
 
     try:
-        with open(urllist_path, 'r', encoding='utf-8') as f:
+        with open(urllist_path, "r", encoding="utf-8") as f:
             urls = [line.strip() for line in f if line.strip()]
     except Exception as e:
         print(f"Error reading file {urllist_file}: {e}", file=sys.stderr)
@@ -71,7 +71,7 @@ def process_url_list(urllist_file: str) -> int:
 
     for i, url in enumerate(urls, 1):
         try:
-            event= extract_event_competition(url)
+            event = extract_event_competition(url)
             output_file = f"race_{event}.csv"
 
             print(f"[{i}/{len(urls)}] Processing {url}...")
@@ -96,6 +96,12 @@ def process_url_list(urllist_file: str) -> int:
 
 
 def main() -> int:
+    """
+    Main entry point for the CLI tool.
+
+    Returns:
+        Exit code (0 for success, 1 for errors)
+    """
     parser = argparse.ArgumentParser(
         description="Scrape race results and export selected columns."
     )
@@ -112,8 +118,7 @@ def main() -> int:
     url_group.add_argument(
         "--urllist",
         help=(
-            "Text file with one URL per line. "
-            "Results will be saved as race_EVENT.csv"
+            "Text file with one URL per line. Results will be saved as race_EVENT.csv"
         ),
     )
 
@@ -127,10 +132,7 @@ def main() -> int:
     # Handle --urllist mode
     if args.urllist:
         if args.output:
-            print(
-                "Warning: --output is ignored when using --urllist",
-                file=sys.stderr
-            )
+            print("Warning: --output is ignored when using --urllist", file=sys.stderr)
         return process_url_list(args.urllist)
 
     # Handle --url mode
