@@ -6,51 +6,69 @@ Dominik Rappaport, dominik@rappaport.at
 
 ## Synopsis
 
-I wanted to download the results of a competition listed on the website RaceTimePro. They do not offer a download to 
-CSV option, though. This script does the job.
+This tool facilitates the download of competition results from the RaceTimePro website. As the platform does not 
+provide a native CSV export option, this script addresses that limitation.
 
 ## Disclaimer
 
-I frankly admit that most parts of this script were written by ChatGPT. I only had to make minor adjustments.
+It should be noted that substantial portions of this script were generated using ChatGPT, with only minor manual 
+adjustments required.
 
 ## Installation
 
-Install the uv package manager. Then run:
+The resultdownloader is distributed as a Python package. Several installation methods are available.
+
+### Using pip
+
+Executing `pip` installs the package in your current Python environment. Global installation was once possible, but
+modern Linux distributions no longer permit this approach.
 
 ```bash
-git clone https://github.com/dominikrappaport/resultdownloader.git
-cd resultdownloader
-uv sync
+pip install resultdownloader
+```
+
+### Using pipx or uv
+
+Both `pipx` and `uv` enable global tool installation. The package can be installed as follows:
+
+```bash
+pipx install resultdownloader
+```
+
+or
+
+```bash
+uv tools install resultdownloader
 ```
 
 ## Usage
 
-### Single URL mode
+### Single URL Mode
 
 Download results from a single competition by providing a URL and output filename:
 
 ```bash
-uv run resultdownloader.py --url "URL" --output FILE
+resultdownloader --url "URL" --output FILE
 ```
 
 Example:
 
 ```bash
-uv run resultdownloader.py --url "https://events.racetime.pro/en/event/1022/competition/6422/results" --output race_results.csv
+resultdownloader --url "https://events.racetime.pro/en/event/1022/competition/6422/results" --output race_results.csv
 ```
 
 ### URL list mode
 
-Download results from multiple competitions by providing a text file with one URL per line:
+Download results from multiple competitions by providing a text file containing one URL per line:
 
 ```bash
-uv run resultdownloader.py --urllist FILE
+resultdownloader --urllist FILE
 ```
 
 Example:
 
 ```bash
-bash uv run resultdownloader.py --urllist racelist.txt
+resultdownloader --urllist racelist.txt
 ```
 
 In this mode, output files are automatically named as `race_EVENT.csv` 

@@ -2,11 +2,11 @@
 CLI tool for downloading race results from RaceTimePro.
 
 Usage:
-    python resultdownloader.py \
+    resultdownloader \
       --url "https://events.racetime.pro/en/event/1022/competition/6422/results" \
       --output results.csv
 
-    python resultdownloader.py \
+    resultdownloader \
       --urllist urls.txt
 """
 
@@ -14,18 +14,18 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from resultdownloader import RaceResultsDownloader
+from .downloader import RaceResultsDownloader
 
 
-def extract_event_competition(url: str) -> tuple[str, str]:
+def extract_event_competition(url: str) -> str:
     """
-    Extract EVENT and COMPETITION from a RaceTimePro URL.
+    Extract EVENT from a RaceTimePro URL.
 
     Args:
         url: URL in format https://events.racetime.pro/en/event/EVENT/competition/COMPETITION/results
 
     Returns:
-        Tuple of (event, competition)
+        Event ID
 
     Raises:
         ValueError: If URL doesn't match expected pattern
@@ -71,7 +71,7 @@ def process_url_list(urllist_file: str) -> int:
 
     for i, url in enumerate(urls, 1):
         try:
-            event= extract_event_competition(url)
+            event = extract_event_competition(url)
             output_file = f"race_{event}.csv"
 
             print(f"[{i}/{len(urls)}] Processing {url}...")
@@ -96,6 +96,12 @@ def process_url_list(urllist_file: str) -> int:
 
 
 def main() -> int:
+    """
+    Main entry point for the CLI tool.
+
+    Returns:
+        Exit code (0 for success, 1 for errors)
+    """
     parser = argparse.ArgumentParser(
         description="Scrape race results and export selected columns."
     )
