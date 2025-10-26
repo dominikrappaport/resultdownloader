@@ -38,7 +38,7 @@ pipx install resultdownloader
 or
 
 ```bash
-uv tools install resultdownloader
+uv tool install resultdownloader
 ```
 
 ## Usage
